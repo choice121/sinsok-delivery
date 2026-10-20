@@ -726,7 +726,14 @@
           <svg class="btn-search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <span data-i18n="track_btn">Track</span>
         </button>
+      
+      <!-- Trust Badges & Security Indicators -->
+      <div style="display: flex; justify-content: center; gap: 18px; margin-top: 16px; font-size: 0.8rem; color: #94A3B8; flex-wrap: wrap;">
+        <span style="display: inline-flex; align-items: center; gap: 5px;">🔒 256-bit SSL</span>
+        <span style="display: inline-flex; align-items: center; gap: 5px;">🛡️ Verified Secure Dispatch</span>
+        <span style="display: inline-flex; align-items: center; gap: 5px;">⚡ Live Cloud Sync</span>
       </div>
+
       <!-- Recent searches -->
       <div class="recent-searches" id="recentSearches">
         <div class="recent-label" data-i18n="recent_label">Recent</div>
@@ -1521,7 +1528,7 @@
       // Delivery photo
       const photoCard = document.getElementById('photoCard');
       if (data.deliveryPhoto) {
-        photoCard.href         = data.deliveryPhoto;
+        photoCard.onclick = (e) => { e.preventDefault(); openPodModal(data.deliveryPhoto); };
         photoCard.style.display = 'flex';
       } else {
         photoCard.style.display = 'none';
@@ -1700,5 +1707,33 @@
     checkURLParam();
 
   </script>
+
+  <!-- POD LIGHTBOX MODAL -->
+  <div id="podModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(10,22,40,0.85);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+    <div style="background:#fff;border-radius:20px;max-width:600px;width:100%;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.3);animation:fadeIn 0.25s ease;">
+      <div style="padding:18px 24px;border-bottom:1px solid #E2E8F4;display:flex;align-items:center;justify-content:between;">
+        <h3 style="font-size:18px;font-weight:700;color:#0A1628;margin:0;">Proof of Delivery Receipt</h3>
+        <button onclick="closePodModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#4A5568;">&times;</button>
+      </div>
+      <div style="padding:24px;text-align:center;background:#F4F6FA;">
+        <img id="podModalImg" src="" alt="Delivery Receipt" style="max-height:350px;width:auto;max-width:100%;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);" />
+      </div>
+      <div style="padding:18px 24px;border-top:1px solid #E2E8F4;display:flex;justify-content:flex-end;gap:12px;">
+        <button onclick="closePodModal()" style="padding:10px 20px;background:#E2E8F4;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Close</button>
+        <a id="podDownloadBtn" href="" target="_blank" download="delivery-receipt.png" style="padding:10px 20px;background:#2563EB;color:#fff;border-radius:8px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:6px;">Download Receipt</a>
+      </div>
+    </div>
+  </div>
+
+<script>
+function openPodModal(url) {
+  document.getElementById('podModalImg').src = url;
+  document.getElementById('podDownloadBtn').href = url;
+  document.getElementById('podModal').style.display = 'flex';
+}
+function closePodModal() {
+  document.getElementById('podModal').style.display = 'none';
+}
+</script>
 </body>
 </html>
