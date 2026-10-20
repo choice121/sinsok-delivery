@@ -309,13 +309,37 @@ function doGet(e) {
     });
   }
 
-  // ── Reject any attempt to use admin actions over GET [#3]
-  const ADMIN_ACTIONS = ['createOrder', 'updateStatus', 'lookupOrder'];
-  if (ADMIN_ACTIONS.includes(params.action)) {
-    return buildResponse({
-      error:   'METHOD_NOT_ALLOWED',
-      message: 'Admin actions must be sent via POST with a JSON body.',
-    });
+  // ── Read-only admin actions supported over GET with adminKey
+  if (params.action === 'listOrders') {
+    if ((params.adminKey || '') !== ADMIN_KEY) {
+      return buildResponse({ error: 'UNAUTHORIZED', message: 'Invalid admin key.' });
+    }
+    const ss = getSpreadsheet();
+    return handleListOrders(ss);
+  }
+  if (params.action === 'getLogs') {
+    if ((params.adminKey || '') !== ADMIN_KEY) {
+      return buildResponse({ error: 'UNAUTHORIZED', message: 'Invalid admin key.' });
+    }
+    const ss = getSpreadsheet();
+    return handleGetLogs(ss);
+  }
+  if (params.action === 'lookupOrder') {
+    if ((params.adminKey || '') !== ADMIN_KEY) {
+      return buildResponse({ error: 'UNAUTHORIZED', message: 'Invalid admin key.' });
+    }
+    const ss = getSpreadsheet();
+    return handleLookupOrder(params, ss);
+  }
+
+  // ── Modifying admin actions: prefer POST, but allow GET fallback
+  if (['createOrder', 'updateStatus'].includes(params.action)) {
+    if ((params.adminKey || '') !== ADMIN_KEY) {
+      return buildResponse({ error: 'UNAUTHORIZED', message: 'Invalid admin key.' });
+    }
+    const ss = getSpreadsheet();
+    if (params.action === 'createOrder')  return handleCreateOrder(params, ss);
+    if (params.action === 'updateStatus') return handleUpdateStatus(params, ss);
   }
 
   // ── Rate limiting
@@ -366,7 +390,7 @@ function doPost(e) {
     }
 
     // ── Admin actions — key validated from JSON body [#3]
-    const ADMIN_ACTIONS = ['createOrder', 'updateStatus', 'lookupOrder'];
+    const ADMIN_ACTIONS = ['createOrder', 'updateStatus', 'lookupOrder', 'listOrders', 'getLogs'];
     if (ADMIN_ACTIONS.includes(action)) {
       if ((body.adminKey || '') !== ADMIN_KEY) {
         return buildResponse({ error: 'UNAUTHORIZED', message: 'Invalid admin key.' });
@@ -376,6 +400,8 @@ function doPost(e) {
         if (action === 'createOrder')  return handleCreateOrder(body, ss);
         if (action === 'updateStatus') return handleUpdateStatus(body, ss);
         if (action === 'lookupOrder')  return handleLookupOrder(body, ss);
+        if (action === 'listOrders')   return handleListOrders(ss);
+        if (action === 'getLogs')      return handleGetLogs(ss);
       } catch (err) {
         writeLog('ERROR', 'adminAction', action + ' threw: ' + err.message);
         return buildResponse({ error: 'SERVER_ERROR', message: err.message });
@@ -641,7 +667,8 @@ function sendStatusEmail(data) {
   };
   const subject = '[' + COMPANY_KR + '] ' + statusInfo.en + ' — ' + data.trackingNumber;
   const html    = buildEmailHTML(data, statusInfo);
-  GmailApp.sendEmail(email, subject, '', { htmlBody: html, name: 'Sinsok Delivery Support', replyTo: 'support.sinsok.delivery@gmail.com' });
+  _sendMail(email, subject, html, data.trackingNumber, statusInfo.en);
+  writeLog('INFO', 'sendStatusEmail', 'Sent update (' + data.status + ') to ' + email);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -959,30 +986,109 @@ function handleUpdateStatus(body, ss) {
 // ═══════════════════════════════════════════════════════════════
 // handleListOrders — list all orders for admin dashboard
 // ═══════════════════════════════════════════════════════════════
+
+
+
+// ═══════════════════════════════════════════════════════════════
+// _formatCell helper for safe JSON serialization of dates
+// ═══════════════════════════════════════════════════════════════
+function _formatCell(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    try {
+      return Utilities.formatDate(val, Session.getScriptTimeZone(), 'MMM d, yyyy HH:mm');
+    } catch (e) {
+      return val.toString();
+    }
+  }
+  return val.toString();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// handleListOrders — returns all tracking records for admin dashboard
+// ═══════════════════════════════════════════════════════════════
 function handleListOrders(ss) {
   const sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) return buildResponse({ orders: [] });
+  if (!sheet) return buildResponse({ ok: true, orders: [] });
   const rows = sheet.getDataRange().getValues();
-  if (rows.length <= 1) return buildResponse({ orders: [] });
+  if (rows.length <= 1) return buildResponse({ ok: true, orders: [] });
   const orders = [];
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
     if (!r[0]) continue;
     orders.push({
-      trackingNumber: r[0],
-      customerEmail:  r[1],
-      status:         r[2],
-      location:       r[3],
-      lastUpdated:    r[4],
-      eta:            r[5],
-      customerName:   r[6],
-      previousStatus: r[7],
-      deliveryPhoto:  r[8],
-      serviceTier:    r[9],
-      packageContents: r[10] || ''
+      trackingNumber:  r[0].toString(),
+      customerEmail:   r[1] ? r[1].toString() : '',
+      status:          r[2] ? r[2].toString() : '',
+      location:        r[3] ? r[3].toString() : '',
+      lastUpdated:     _formatCell(r[4]),
+      eta:             _formatCell(r[5]),
+      customerName:    r[6] ? r[6].toString() : '',
+      previousStatus:  r[7] ? r[7].toString() : '',
+      deliveryPhoto:   r[8] ? r[8].toString() : '',
+      serviceTier:     r[9] ? r[9].toString() : 'Standard',
+      packageContents: r[10] ? r[10].toString() : ''
     });
   }
-  return buildResponse({ orders: orders.reverse() });
+  return buildResponse({ ok: true, orders: orders.reverse() });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// handleGetLogs — returns recent logs for admin debugging
+// ═══════════════════════════════════════════════════════════════
+function handleGetLogs(ss) {
+  const sheet = ss.getSheetByName(LOG_SHEET);
+  if (!sheet) return buildResponse({ ok: true, logs: [] });
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length <= 1) return buildResponse({ ok: true, logs: [] });
+  const logs = [];
+  for (let i = Math.max(1, rows.length - 50); i < rows.length; i++) {
+    const r = rows[i];
+    logs.push({
+      timestamp: _formatCell(r[0]),
+      level:     r[1] ? r[1].toString() : '',
+      context:   r[2] ? r[2].toString() : '',
+      message:   r[3] ? r[3].toString() : ''
+    });
+  }
+  return buildResponse({ ok: true, logs: logs.reverse() });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// _sendMail helper with MailApp + GmailApp fallback & non-empty plain body
+// ═══════════════════════════════════════════════════════════════
+function _sendMail(to, subject, html, trackingNumber, statusText) {
+  const plainBody = 'Sinsok Delivery Update for package ' + (trackingNumber || '') + '
+
+' +
+    'Status: ' + (statusText || 'Updated') + '
+' +
+    'Track your package online: ' + SITE_URL + '?track=' + encodeURIComponent(trackingNumber || '') + '
+
+' +
+    'If you have questions, contact: support.sinsok.delivery@gmail.com';
+
+  const mailOptions = {
+    name: '신속배송 · Sinsok Delivery Support',
+    replyTo: 'support.sinsok.delivery@gmail.com',
+    htmlBody: html
+  };
+
+  try {
+    MailApp.sendEmail(to, subject, plainBody, mailOptions);
+    Logger.log('MailApp sent to: ' + to);
+    return true;
+  } catch (err1) {
+    try {
+      GmailApp.sendEmail(to, subject, plainBody, mailOptions);
+      Logger.log('GmailApp sent to: ' + to);
+      return true;
+    } catch (err2) {
+      Logger.log('Email sending failed: MailApp: ' + err1.message + ' | GmailApp: ' + err2.message);
+      writeLog('ERROR', 'sendMail', 'MailApp: ' + err1.message + ' | GmailApp: ' + err2.message);
+      return false;
+    }
+  }
 }
 
 function handleLookupOrder(body, ss) {
@@ -1012,8 +1118,8 @@ function sendConfirmationEmail(data) {
   if (!email || email.indexOf('@') === -1) return;
   const subject = '[' + COMPANY_KR + '] Order Confirmed — ' + data.trackingNumber;
   const html    = buildConfirmationEmailHTML(data);
-  GmailApp.sendEmail(email, subject, '', { htmlBody: html, name: 'Sinsok Delivery Support', replyTo: 'support.sinsok.delivery@gmail.com' });
-  writeLog('INFO', 'sendConfirmationEmail', 'Sent to ' + email + ' — ' + data.trackingNumber);
+  _sendMail(email, subject, html, data.trackingNumber, 'Order Confirmed');
+  writeLog('INFO', 'sendConfirmationEmail', 'Sent confirmation to ' + email + ' — ' + data.trackingNumber);
 }
 
 // ═══════════════════════════════════════════════════════════════
