@@ -47,7 +47,7 @@ const LOG_SHEET        = 'Logs';
 const COMPANY_NAME     = '신속배송 · Sinsok Delivery';
 const COMPANY_KR       = '신속배송';
 const BRAND_COLOR      = '#2563EB';
-const SITE_URL         = 'https://sinsokdelivery.netlify.app';
+const SITE_URL         = 'https://sinsok-delivery.pages.dev';
 
 // ─── RATE LIMITING ───────────────────────────────────────────────
 // Fixed-window rate limiting via CacheService.
