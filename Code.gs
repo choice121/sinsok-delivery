@@ -1118,10 +1118,7 @@ function testEmailSend() {
       throw new Error('testEmailSend() must be run manually in the Apps Script editor only.');
     }
   }
-  const TEST_EMAIL = 'YOUR_TEST_EMAIL@gmail.com';
-  if (TEST_EMAIL === 'YOUR_TEST_EMAIL@gmail.com') {
-    throw new Error('Replace YOUR_TEST_EMAIL@gmail.com with your actual email before running.');
-  }
+  const TEST_EMAIL = (typeof Session !== 'undefined' && Session.getActiveUser() && Session.getActiveUser().getEmail()) || 'teamchoice606@gmail.com';
   const testData = {
     trackingNumber: 'SS20260101-001',
     customerEmail:  TEST_EMAIL,
