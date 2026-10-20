@@ -422,7 +422,7 @@ function doPost(e) {
 // ═══════════════════════════════════════════════════════════════
 function checkRateLimit(e) {
   try {
-    const userKey = 'rate_' + Session.getTemporaryActiveUserToken();
+    const userKey = 'rate_' + (e && e.parameter && e.parameter.trackingNumber ? e.parameter.trackingNumber : 'global');
     const cache   = CacheService.getScriptCache();
     const now     = Date.now();
     let count       = 0;
