@@ -641,7 +641,7 @@ function sendStatusEmail(data) {
   };
   const subject = '[' + COMPANY_KR + '] ' + statusInfo.en + ' — ' + data.trackingNumber;
   const html    = buildEmailHTML(data, statusInfo);
-  GmailApp.sendEmail(email, subject, '', { htmlBody: html, name: COMPANY_NAME });
+  GmailApp.sendEmail(email, subject, '', { htmlBody: html, name: 'Sinsok Delivery Support', replyTo: 'support.sinsok.delivery@gmail.com' });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -955,6 +955,36 @@ function handleUpdateStatus(body, ss) {
 // ═══════════════════════════════════════════════════════════════
 // handleLookupOrder — admin action (POST only) [#3]
 // ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+// handleListOrders — list all orders for admin dashboard
+// ═══════════════════════════════════════════════════════════════
+function handleListOrders(ss) {
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) return buildResponse({ orders: [] });
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length <= 1) return buildResponse({ orders: [] });
+  const orders = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r[0]) continue;
+    orders.push({
+      trackingNumber: r[0],
+      customerEmail:  r[1],
+      status:         r[2],
+      location:       r[3],
+      lastUpdated:    r[4],
+      eta:            r[5],
+      customerName:   r[6],
+      previousStatus: r[7],
+      deliveryPhoto:  r[8],
+      serviceTier:    r[9],
+      packageContents: r[10] || ''
+    });
+  }
+  return buildResponse({ orders: orders.reverse() });
+}
+
 function handleLookupOrder(body, ss) {
   const raw = cap(body.trackingNumber || '', 40).toUpperCase();
   if (!raw || !TRACKING_REGEX.test(raw)) {
@@ -982,7 +1012,7 @@ function sendConfirmationEmail(data) {
   if (!email || email.indexOf('@') === -1) return;
   const subject = '[' + COMPANY_KR + '] Order Confirmed — ' + data.trackingNumber;
   const html    = buildConfirmationEmailHTML(data);
-  GmailApp.sendEmail(email, subject, '', { htmlBody: html, name: COMPANY_NAME });
+  GmailApp.sendEmail(email, subject, '', { htmlBody: html, name: 'Sinsok Delivery Support', replyTo: 'support.sinsok.delivery@gmail.com' });
   writeLog('INFO', 'sendConfirmationEmail', 'Sent to ' + email + ' — ' + data.trackingNumber);
 }
 
