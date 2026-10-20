@@ -1058,34 +1058,32 @@ function handleGetLogs(ss) {
 // _sendMail helper with MailApp + GmailApp fallback & non-empty plain body
 // ═══════════════════════════════════════════════════════════════
 function _sendMail(to, subject, html, trackingNumber, statusText) {
-  const plainBody = 'Sinsok Delivery Update for package ' + (trackingNumber || '') + '
+  var tn = trackingNumber || "";
+  var status = statusText || "Updated";
+  var trackUrl = SITE_URL + "?track=" + encodeURIComponent(tn);
+  var plainBody = "Sinsok Delivery Update for package " + tn + "\n\n" +
+    "Status: " + status + "\n" +
+    "Track your package online: " + trackUrl + "\n\n" +
+    "If you have questions, contact: support.sinsok.delivery@gmail.com";
 
-' +
-    'Status: ' + (statusText || 'Updated') + '
-' +
-    'Track your package online: ' + SITE_URL + '?track=' + encodeURIComponent(trackingNumber || '') + '
-
-' +
-    'If you have questions, contact: support.sinsok.delivery@gmail.com';
-
-  const mailOptions = {
-    name: '신속배송 · Sinsok Delivery Support',
-    replyTo: 'support.sinsok.delivery@gmail.com',
+  var mailOptions = {
+    name: "신속배송 · Sinsok Delivery Support",
+    replyTo: "support.sinsok.delivery@gmail.com",
     htmlBody: html
   };
 
   try {
     MailApp.sendEmail(to, subject, plainBody, mailOptions);
-    Logger.log('MailApp sent to: ' + to);
+    Logger.log("MailApp sent to: " + to);
     return true;
   } catch (err1) {
     try {
       GmailApp.sendEmail(to, subject, plainBody, mailOptions);
-      Logger.log('GmailApp sent to: ' + to);
+      Logger.log("GmailApp sent to: " + to);
       return true;
     } catch (err2) {
-      Logger.log('Email sending failed: MailApp: ' + err1.message + ' | GmailApp: ' + err2.message);
-      writeLog('ERROR', 'sendMail', 'MailApp: ' + err1.message + ' | GmailApp: ' + err2.message);
+      Logger.log("Email sending failed: MailApp: " + err1.message + " | GmailApp: " + err2.message);
+      writeLog("ERROR", "sendMail", "MailApp: " + err1.message + " | GmailApp: " + err2.message);
       return false;
     }
   }
